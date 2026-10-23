@@ -12,6 +12,8 @@ from config.settings import (
     WEIGHT_HANDLING_FEES,
     AMAZON_FEE_GST_RATE,
     STORAGE_FEE_PER_CUFT_MONTH,
+    ZRF_PRICE_THRESHOLD,
+    ZRF_ELIGIBLE_CATEGORIES,
 )
 
 class ProfitCalculator:
@@ -32,8 +34,19 @@ class ProfitCalculator:
         return (length_cm * width_cm * height_cm) / 28316.85
 
     @staticmethod
-    def get_referral_fee(selling_price_gross: float, category: str, custom_rate: float = None) -> float:
-        """Calculates Amazon India referral fee based on category percentage."""
+    def get_referral_fee(
+        selling_price_gross: float,
+        category: str,
+        custom_rate: float = None,
+        apply_zrf: bool = False
+    ) -> float:
+        """
+        Calculates Amazon India referral fee based on category percentage.
+        When apply_zrf is True, products <= ZRF_PRICE_THRESHOLD (₹1,000) in eligible categories receive 0% referral fee.
+        """
+        if apply_zrf and selling_price_gross <= ZRF_PRICE_THRESHOLD and category in ZRF_ELIGIBLE_CATEGORIES and custom_rate is None:
+            return 0.0
+
         rate = custom_rate if custom_rate is not None else AMAZON_REFERRAL_FEE_RATES.get(category, 0.10)
         fee = selling_price_gross * rate
         # Category minimum fee floor (typically ₹3-₹5 in India)
@@ -102,7 +115,8 @@ class ProfitCalculator:
         inventory_storage_days: int = 35,
         delivery_zone: str = "national",
         custom_referral_rate: float = None,
-        promotional_discount_unit: float = 0.0
+        promotional_discount_unit: float = 0.0,
+        apply_zrf: bool = False
     ) -> Dict[str, Any]:
         """
         Performs full financial calculation and returns structured metrics with an audit log.
@@ -128,7 +142,7 @@ class ProfitCalculator:
         audit_trail.append(f"Gross Selling Price: ₹{selling_price_gross:.2f} | Net Excl. GST: ₹{net_selling_price_ex_tax:.2f} | Output GST: ₹{output_gst_liability:.2f} ({gst_rate*100:.0f}%)")
 
         # 3. Amazon Marketplace Service Fees (Excl. 18% Service GST)
-        referral_fee = cls.get_referral_fee(selling_price_gross, category, custom_referral_rate)
+        referral_fee = cls.get_referral_fee(selling_price_gross, category, custom_referral_rate, apply_zrf=apply_zrf)
         closing_fee = cls.get_closing_fee(selling_price_gross, fulfilment_model)
         weight_handling_fee = cls.get_weight_handling_fee(actual_weight_kg, volumetric_weight_kg, fulfilment_model, delivery_zone)
         
@@ -142,8 +156,12 @@ class ProfitCalculator:
         amazon_fees_service_gst = amazon_fees_subtotal_ex_tax * AMAZON_FEE_GST_RATE
         total_amazon_fees_gross = amazon_fees_subtotal_ex_tax + amazon_fees_service_gst
 
+        is_zrf_applied = (apply_zrf and selling_price_gross <= ZRF_PRICE_THRESHOLD and category in ZRF_ELIGIBLE_CATEGORIES and custom_referral_rate is None)
+        if is_zrf_applied:
+            audit_trail.append("Zero Referral Fee (ZRF) Applied: 0% referral fee for item <= ₹1,000 in eligible category.")
+
         audit_trail.append(
-            f"Amazon Fees (Ex-Tax): Referral=₹{referral_fee:.2f}, Closing=₹{closing_fee:.2f}, "
+            f"Amazon Fees (Ex-Tax): Referral=₹{referral_fee:.2f}{' (ZRF 0%)' if is_zrf_applied else ''}, Closing=₹{closing_fee:.2f}, "
             f"Shipping=₹{weight_handling_fee:.2f}, PickPack=₹{pick_pack_fee:.2f}, Storage=₹{storage_fee:.2f}. "
             f"Subtotal=₹{amazon_fees_subtotal_ex_tax:.2f} + 18% GST=₹{amazon_fees_service_gst:.2f}"
         )
@@ -207,7 +225,8 @@ class ProfitCalculator:
             fulfilment_model,
             gst_rate,
             is_gst_registered,
-            return_rate_pct * loss_on_return_pct
+            return_rate_pct * loss_on_return_pct,
+            apply_zrf=apply_zrf
         )
 
         return {
@@ -222,6 +241,7 @@ class ProfitCalculator:
             "sourcing_cost_unit": round(sourcing_cost_unit, 2),
             "landed_cost_unit": round(sourcing_cost_unit, 2),
             "referral_fee": round(referral_fee, 2),
+            "is_zrf_applied": is_zrf_applied,
             "closing_fee": round(closing_fee, 2),
             "weight_handling_fee": round(weight_handling_fee, 2),
             "pick_pack_fee": round(pick_pack_fee, 2),
@@ -263,16 +283,16 @@ class ProfitCalculator:
         fulfilment_model: str,
         gst_rate: float,
         is_gst_registered: bool,
-        return_loss_factor: float
+        return_loss_factor: float,
+        apply_zrf: bool = False
     ) -> float:
         """Solves for price where Net Profit = 0."""
-        ref_rate = AMAZON_REFERRAL_FEE_RATES.get(category, 0.10)
         # Search from sourcing_cost up to 10x sourcing_cost
         low, high = sourcing_cost, sourcing_cost * 10.0 + 500.0
         for _ in range(30):
             mid = (low + high) / 2.0
             closing = cls.get_closing_fee(mid, fulfilment_model)
-            ref = max(mid * ref_rate, 3.0)
+            ref = cls.get_referral_fee(mid, category, apply_zrf=apply_zrf)
             fees = ref + closing + fixed_shipping_and_storage
             net_rev = (mid / (1.0 + gst_rate)) if (is_gst_registered and gst_rate > 0) else mid
             profit = net_rev - sourcing_cost - fees - (mid * return_loss_factor)
@@ -295,7 +315,8 @@ class ProfitCalculator:
         fulfilment_model: str = "FBA",
         gst_rate: float = 0.18,
         is_gst_registered: bool = True,
-        monthly_units: int = 150
+        monthly_units: int = 150,
+        apply_zrf: bool = False
     ) -> Dict[str, Dict[str, Any]]:
         """
         Generates Conservative, Base, and Optimistic financial projections.
@@ -316,6 +337,7 @@ class ProfitCalculator:
             is_gst_registered=is_gst_registered,
             ad_spend_pct=0.20,
             return_rate_pct=0.12,
+            apply_zrf=apply_zrf
         )
         conservative["scenario_name"] = "Conservative"
         conservative["monthly_units_est"] = int(monthly_units * 0.7)
@@ -335,6 +357,7 @@ class ProfitCalculator:
             is_gst_registered=is_gst_registered,
             ad_spend_pct=0.12,
             return_rate_pct=0.07,
+            apply_zrf=apply_zrf
         )
         base["scenario_name"] = "Base"
         base["monthly_units_est"] = monthly_units
@@ -356,6 +379,7 @@ class ProfitCalculator:
             is_gst_registered=is_gst_registered,
             ad_spend_pct=0.06,
             return_rate_pct=0.04,
+            apply_zrf=apply_zrf
         )
         optimistic["scenario_name"] = "Optimistic"
         optimistic["monthly_units_est"] = int(monthly_units * 1.4)

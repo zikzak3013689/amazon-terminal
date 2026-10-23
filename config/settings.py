@@ -53,6 +53,26 @@ AMAZON_REFERRAL_FEE_RATES = {
     "Other Categories": 0.12,
 }
 
+# Amazon India Zero Referral Fee (ZRF) Policy
+# Products priced at or below ₹1,000 in qualifying categories pay 0% referral fee
+ZRF_PRICE_THRESHOLD = 1000.0
+ZRF_DEFAULT_ENABLED = True
+ZRF_ELIGIBLE_CATEGORIES = [
+    "Home & Kitchen",
+    "Kitchen & Dining",
+    "Home Decor",
+    "Clothing & Accessories",
+    "Bags & Luggage",
+    "Beauty & Personal Care",
+    "Health & Household",
+    "Toys & Games",
+    "Sports, Fitness & Outdoors",
+    "Baby Products",
+    "Office Products & Stationery",
+    "Pet Supplies",
+    "Industrial & Scientific",
+]
+
 # Amazon India Closing Fee Slabs (Standard FBA)
 # Fee varies by item selling price band
 AMAZON_CLOSING_FEE_SLABS = {

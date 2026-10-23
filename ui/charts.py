@@ -36,11 +36,14 @@ def render_profit_waterfall(profit_data: Dict[str, Any]) -> go.Figure:
     returns = profit_data.get("return_cost_unit", 0)
     net_profit = profit_data.get("net_profit_unit", 0)
 
+    is_zrf = profit_data.get("is_zrf_applied", False)
+    ref_label = "Referral Fee (ZRF 0%)" if is_zrf else "Referral Fee"
+
     x_labels = [
         "Retail Price (MRP)",
         "Output GST",
         "Landed Sourcing",
-        "Referral Fee",
+        ref_label,
         "Closing Fee",
         "FBA / Shipping",
         "PPC Ad Spend",

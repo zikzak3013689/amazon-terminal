@@ -23,13 +23,21 @@ def test_closing_fee_slabs():
     assert ProfitCalculator.get_closing_fee(1499.0, "FBA") == 61.0
 
 def test_referral_fee():
-    # Home & Kitchen is 9%
-    fee_home = ProfitCalculator.get_referral_fee(1000.0, "Home & Kitchen")
+    # Home & Kitchen is 9% (standard without ZRF)
+    fee_home = ProfitCalculator.get_referral_fee(1000.0, "Home & Kitchen", apply_zrf=False)
     assert fee_home == 90.0
 
     # Minimum fee rule (₹3.0)
-    fee_min = ProfitCalculator.get_referral_fee(20.0, "Home & Kitchen")
+    fee_min = ProfitCalculator.get_referral_fee(20.0, "Home & Kitchen", apply_zrf=False)
     assert fee_min >= 3.0
+
+    # ZRF policy: 0% referral fee for qualifying categories <= ₹1,000
+    fee_zrf = ProfitCalculator.get_referral_fee(799.0, "Home & Kitchen", apply_zrf=True)
+    assert fee_zrf == 0.0
+
+    # ZRF boundary check: Products above ₹1,000 pay standard referral fee
+    fee_above_zrf = ProfitCalculator.get_referral_fee(1200.0, "Home & Kitchen", apply_zrf=True)
+    assert fee_above_zrf == 108.0
 
 def test_gst_treatment_registered_vs_unregistered():
     # Selling price ₹1000, sourcing ₹300, 18% GST

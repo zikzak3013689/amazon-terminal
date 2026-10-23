@@ -8,20 +8,31 @@ from typing import Dict, Any, List, Optional
 import os
 import re
 import json
-import openpyxl
 from datetime import datetime
+
+try:
+    import openpyxl
+    HAS_OPENPYXL = True
+except ImportError:
+    openpyxl = None
+    HAS_OPENPYXL = False
+
 from database.repository import ProductRepository
 from database.connection import get_db_connection
 from connectors.amazon_manual import AmazonManualConnector
 
 class ExcelImporter:
     """Specialized and generic importer for product research workbooks."""
+    HAS_OPENPYXL = HAS_OPENPYXL
 
     @classmethod
     def import_workbook(cls, filepath: str, is_demo: int = 0) -> Dict[str, Any]:
         """
         Detects workbook type and routes to specialized parser or generic importer.
         """
+        if not cls.HAS_OPENPYXL:
+            raise ImportError("openpyxl is required for Excel workbook importing. Install with: pip install openpyxl")
+
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"File not found: {filepath}")
 

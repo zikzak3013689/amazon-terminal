@@ -603,6 +603,7 @@ elif nav_selection == "💰 Step 3: Real Unit Economics & ₹50K Capital Allocat
             st.markdown("#### 3. Taxes & Marketing")
             sb_gst_choice = st.selectbox("Product GST Bracket", options=list(GST_RATES.keys()), index=3)
             sb_is_reg = st.checkbox("GST Registered Business (Claim ITC)", value=True)
+            sb_apply_zrf = st.checkbox("Amazon Zero Referral Fee (ZRF ≤ ₹1,000)", value=True, help="Qualifying categories pay 0% referral fee when priced at or below ₹1,000.")
             sb_acos = st.slider("Budgeted PPC Ad Spend (% of price)", min_value=0, max_value=35, value=12)
             sb_return = st.slider("Expected Return Rate (%)", min_value=0, max_value=25, value=6)
 
@@ -618,7 +619,8 @@ elif nav_selection == "💰 Step 3: Real Unit Economics & ₹50K Capital Allocat
             gst_rate=GST_RATES[sb_gst_choice],
             is_gst_registered=sb_is_reg,
             ad_spend_pct=sb_acos / 100.0,
-            return_rate_pct=sb_return / 100.0
+            return_rate_pct=sb_return / 100.0,
+            apply_zrf=sb_apply_zrf
         )
 
         st.markdown("<br>", unsafe_allow_html=True)

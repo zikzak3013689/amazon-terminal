@@ -18,6 +18,9 @@ def setup_db(tmp_path, monkeypatch):
     yield
 
 def test_student_excel_imports():
+    if not getattr(ExcelImporter, "HAS_OPENPYXL", True):
+        pytest.skip("openpyxl is not installed in current environment")
+
     old_file = "OLD Product Research Spreadsheet (_File_ -_ _Make A Copy_).xlsx"
     new_file = "🔎 NEW Student Amazon Product Research Template (_File_ -_ _Make A Copy_).xlsx"
 
