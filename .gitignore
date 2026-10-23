@@ -20,3 +20,7 @@ ENV/
 # IDE
 .vscode/
 .idea/
+
+# Binaries
+cloudflared.exe
+
